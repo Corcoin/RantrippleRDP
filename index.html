@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Remote Desktop Services</title>
+    
     <link rel="stylesheet" href="style.css">
 </head>
   <style>
@@ -123,10 +124,42 @@ footer {
 
     <script>
       document.getElementById('contactForm').addEventListener('submit', function(event){
-    event.preventDefault(); // Prevents form from submitting the traditional way
-    alert('Thank you for contacting us, ' + document.getElementById('name').value + '!');
+          event.preventDefault(); // Prevents form from submitting the traditional way
+          alert('Thank you for contacting us, ' + document.getElementById('name').value + '!');
+      });
+        document.getElementById('contactForm').addEventListener('submit', function(event) {
+    event.preventDefault(); // Prevent the default form submission
+
+    // Collect the form data
+    var name = document.getElementById('name').value;
+    var email = document.getElementById('email').value;
+    var message = document.getElementById('message').value;
+
+    // Prepare the data to be sent
+    var templateParams = {
+        from_name: name,
+        reply_to: email,
+        message: message
+    };
+
+    // Send the email
+    emailjs.send('your_service_id', 'your_template_id', templateParams)
+        .then(function(response) {
+            console.log('SUCCESS!', response.status, response.text);
+            alert('Your message has been sent successfully!');
+        }, function(error) {
+            console.log('FAILED...', error);
+            alert('Failed to send the message, please try again.');
+        });
 });
 
+        (function(){
+            emailjs.init("service_6zvbf1e"); // Replace 'your_user_id' with your actual EmailJS user ID
+        })();
+
+
     </script>
+    <script type="text/javascript" src="https://cdn.emailjs.com/sdk/2.3.2/email.min.js"></script>
+
 </body>
 </html>
