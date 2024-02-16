@@ -1,1 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Screen Sharing</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+</head>
+
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden; /* Hide scrollbars */
+        display: flex; /* Use Flexbox to center content */
+        justify-content: center; /* Center horizontally */
+        align-items: center; /* Center vertically */
+        background: black;
+    }
+
+    #container {
+        width: 100%;
+        height: 100%;
+        background: none; /* Remove grey background */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    #video {
+        width: 2400px; /* Make video fill the container */
+        height: 955px; /* Adjust height to maintain aspect ratio */
+        object-fit: contain; /* Cover the whole screen without losing aspect ratio */
+    }
+
+    #controls {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        z-index: 10; /* Ensure controls are clickable */
+    }
+    h1{
+        color: beige;
+    }
+</style>
+
+    
+
+
+    
+    
+
+<body>
+    <div >
+        <video id="video" autoplay playsinline muted></video>
+    </div>
+    <h1>RantRipple Internet in the cloud</h1>
+    <div id="controls">
+        <button class="btn btn-primary" id="start"> Connect to RantRipple</button>
+        <button class="btn btn-secondary" id="stop">Stop</button>
+    </div>
+    <script>
+        // Example: Connect to WebSocket server
+        const ws = new WebSocket('ws://192.168.1.206:443');
+
+        ws.onopen = () => {
+            console.log('Connected to the signaling server');
+        };
+
+        ws.onmessage = (message) => {
+            console.log('Message from server:', message.data);
+        };
+
+        // Example: Send a message to the server
+        ws.send('Hello, server!');
+    </script>
+    <script>
+        // Assuming signaling through WebSocket is already set up and ws is your WebSocket instance
+        let localPeerConnection;
+        
+        
+        function createPeerConnection() {
+            localPeerConnection = new RTCPeerConnection();
+        
+            // Create a data channel
+            dataChannel = localPeerConnection.createDataChannel("myDataChannel");
+            dataChannel.onopen = event => {
+                console.log("Data Channel is open");
+            };
+            dataChannel.onmessage = event => {
+                console.log("Received message: " + event.data);
+                // Here you can handle incoming messages, such as remote control commands
+            };
+        
+            // Handle ICE candidates
+            localPeerConnection.onicecandidate = event => {
+                if (event.candidate) {
+                    console.log("Sending ICE candidate");
+                    ws.send(JSON.stringify({'type': 'candidate', 'candidate': event.candidate}));
+                }
+            };
+        
+            // Handle remote offer
+            localPeerConnection.onnegotiationneeded = async () => {
+                try {
+                    console.log("Creating offer");
+                    const offer = await localPeerConnection.createOffer();
+                    await localPeerConnection.setLocalDescription(offer);
+                    ws.send(JSON.stringify({'type': 'offer', 'offer': offer}));
+                } catch (err) {
+                    console.error("Error creating an offer: ", err);
+                }
+            };
+        }
+        
+        // Example function to handle incoming WebSocket messages for signaling
+        function handleSignalingMessage(message) {
+            const data = JSON.parse(message.data);
+        
+            switch (data.type) {
+                case "offer":
+                    console.log("Received offer");
+                    localPeerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                    localPeerConnection.createAnswer().then(answer => {
+                        localPeerConnection.setLocalDescription(answer);
+                        ws.send(JSON.stringify({'type': 'answer', 'answer': answer}));
+                    });
+                    break;
+                case "answer":
+                    console.log("Received answer");
+                    localPeerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    break;
+                case "candidate":
+                    console.log("Received candidate");
+                    localPeerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    break;
+                default:
+                    console.log("Unknown message type:", data.type);
+            }
+        }
+        
+        // Add this line where you set up your WebSocket connection
+        ws.onmessage = handleSignalingMessage;
+        
+        // Start the peer connection and data channel setup
+        createPeerConnection();
+    </script>
+    <script type="text/javascript">
+        const videoElem = document.getElementById("video");
+        const startElem = document.getElementById("start");
+        const stopElem = document.getElementById("stop");
+
+        // Placeholder for your WebRTC data channel setup
+        let dataChannel; // This should be initialized as part of your WebRTC peer connection setup
+
+        var displayMediaOptions = {
+            video: {
+                cursor: "always",
+                height: 1000,
+                width: 1200
+            },
+            audio: false
+        };
+
+        startElem.addEventListener("click", function (evt) {
+            startCapture();
+        }, false);
+
+        stopElem.addEventListener("click", function (evt) {
+            stopCapture();
+        }, false);
+
+        async function startCapture() {
+            try {
+                videoElem.srcObject = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+                dumpOptionsInfo();
+            } catch (err) {
+                console.error("Error: " + err);
+            }
+        }
+
+        function stopCapture(evt) {
+            let tracks = videoElem.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            videoElem.srcObject = null;
+        }
+
+        function dumpOptionsInfo() {
+            const videoTrack = videoElem.srcObject.getVideoTracks()[0];
+            console.info("Track settings:");
+            console.info(JSON.stringify(videoTrack.getSettings(), null, 2));
+            console.info("Track constraints:");
+            console.info(JSON.stringify(videoTrack.getConstraints(), null, 2));
+        }
+
+        // Example functions for capturing and sending control events
+        function captureAndSendMouseAndKeyboardEvents() {
+            document.addEventListener('mousemove', (event) => {
+                // Placeholder: Serialize and send mouse move events through WebRTC data channel
+                sendData({type: 'mousemove', x: event.clientX, y: event.clientY});
+            });
+
+            document.addEventListener('click', (event) => {
+                // Placeholder: Serialize and send mouse click events through WebRTC data channel
+                sendData({type: 'click', x: event.clientX, y: event.clientY});
+            });
+
+            document.addEventListener('keydown', (event) => {
+                // Placeholder: Serialize and send keyboard press events through WebRTC data channel
+                sendData({type: 'keydown', key: event.key});
+            });
+        }
+
+        function sendData(data) {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                dataChannel.send(JSON.stringify(data));
+            } else {
+                console.log('Data channel is not ready or available.');
+            }
+        }
+
+        // Call this function when your WebRTC connection and data channel are ready
+        // captureAndSendMouseAndKeyboardEvents();
+    </script>
+    
+    
+        
+</body>
+</html>
 
